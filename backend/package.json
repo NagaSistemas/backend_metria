@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "PORT=3001 tsx watch src/server.ts",
     "build": "npx tsc && npx prisma generate",
-    "start": "npx prisma generate && npx prisma db push && node dist/server.js",
+    "start": "npx prisma generate && npx prisma db push && npx tsx src/server.ts",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio"
