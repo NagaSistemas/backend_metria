@@ -1,0 +1,151 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Restaurant {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  logo        String?
+  address     String
+  phone       String
+  email       String
+  city        String
+  state       String
+  zipCode     String
+  theme       String?  // JSON string - Cores, fontes, layout
+  settings    String?  // JSON string - Configurações específicas
+  active      Boolean  @default(true)
+  ownerId     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relacionamentos
+  categories  Category[]
+  menuItems   MenuItem[]
+  orders      Order[]
+  users       User[]
+  payments    Payment[]
+  customers   Customer[]
+  chatInteractions ChatInteraction[]
+  
+  @@map("restaurants")
+}
+
+model User {
+  id           String      @id @default(cuid())
+  email        String      @unique
+  name         String
+  role         String      @default("WAITER") // SUPER_ADMIN, OWNER, MANAGER, WAITER, KITCHEN
+  restaurantId String?
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  active       Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model Category {
+  id           String     @id @default(cuid())
+  name         String
+  active       Boolean    @default(true)
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  items        MenuItem[]
+  createdAt    DateTime   @default(now())
+}
+
+model MenuItem {
+  id           String      @id @default(cuid())
+  name         String
+  description  String
+  price        Float
+  image        String?
+  active       Boolean     @default(true)
+  categoryId   String
+  restaurantId String
+  category     Category    @relation(fields: [categoryId], references: [id])
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  orderItems   OrderItem[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model Order {
+  id           String      @id @default(cuid())
+  status       String      @default("PENDING")
+  total        Float
+  table        String?
+  customer     String?
+  notes        String?
+  restaurantId String
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  items        OrderItem[]
+  payment      Payment?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model OrderItem {
+  id         String   @id @default(cuid())
+  quantity   Int
+  price      Float
+  orderId    String
+  menuItemId String
+  order      Order    @relation(fields: [orderId], references: [id])
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
+}
+
+model ChatInteraction {
+  id           String     @id @default(cuid())
+  message      String
+  response     String
+  keywords     String?
+  sessionId    String?
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+}
+
+model Payment {
+  id              String     @id @default(cuid())
+  orderId         String     @unique
+  asaasId         String?    @unique
+  customerId      String?
+  method          String     // PIX, CREDIT_CARD, BOLETO
+  status          String     @default("PENDING")
+  value           Float
+  pixQrCode       String?
+  pixCopyPaste    String?
+  boleto          String?
+  externalRef     String?
+  restaurantId    String
+  restaurant      Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  order           Order      @relation(fields: [orderId], references: [id])
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+}
+
+model Customer {
+  id           String     @id @default(cuid())
+  asaasId      String?    @unique
+  name         String
+  email        String?
+  phone        String?
+  cpf          String?
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+}
+
+model AIConfig {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+}

@@ -1,0 +1,35 @@
+{
+  "name": "muzzajazz-system",
+  "version": "2.0.0",
+  "description": "🎷 Muzzajazz - Sistema Completo de Cardápio Digital com IA",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd cardapio-digital && npm run dev",
+    "clean": "pkill -f node || true",
+    "build": "cd backend && npm install && npm run build",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd cardapio-digital && npm run build",
+    "install:all": "npm install && cd backend && npm install && cd ../cardapio-digital && npm install",
+    "start": "cd backend && npm start",
+    "start:backend": "cd backend && npm start",
+    "start:frontend": "cd cardapio-digital && npm start",
+    "reset:db": "cd backend && npx prisma migrate reset --force"
+  },
+  "keywords": [
+    "muzzajazz",
+    "restaurant",
+    "digital-menu",
+    "ai-assistant",
+    "jazz",
+    "pirenopolis",
+    "pwa",
+    "payments",
+    "real-time"
+  ],
+  "author": "Muzzajazz Team",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
