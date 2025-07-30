@@ -3,6 +3,8 @@ import cors from 'cors'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
 import { PrismaClient } from '@prisma/client'
+import { AuthService } from './services/auth.service'
+import bcrypt from 'bcryptjs'
 
 const app = express()
 const server = createServer(app)
@@ -71,6 +73,35 @@ async function seedDatabase() {
         }
       ]
     })
+    
+    // Criar usuários padrão com senhas
+    const adminExists = await prisma.user.findUnique({ where: { email: 'admin@muzzajazz.com' } })
+    if (!adminExists) {
+      const adminPassword = await bcrypt.hash('admin123', 10)
+      await prisma.user.create({
+        data: {
+          email: 'admin@muzzajazz.com',
+          name: 'Administrador',
+          password: adminPassword,
+          role: 'admin',
+          restaurantId: restaurant.id
+        }
+      })
+    }
+    
+    const kitchenExists = await prisma.user.findUnique({ where: { email: 'cozinha@muzzajazz.com' } })
+    if (!kitchenExists) {
+      const kitchenPassword = await bcrypt.hash('kitchen123', 10)
+      await prisma.user.create({
+        data: {
+          email: 'cozinha@muzzajazz.com',
+          name: 'Cozinha',
+          password: kitchenPassword,
+          role: 'kitchen',
+          restaurantId: restaurant.id
+        }
+      })
+    }
   }
 }
 
@@ -85,6 +116,41 @@ app.get('/', (req, res) => {
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() })
+})
+
+// Auth Routes
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body
+    const result = await AuthService.login(email, password)
+    res.json({ success: true, data: result })
+  } catch (error: any) {
+    res.status(401).json({ success: false, error: error.message })
+  }
+})
+
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { email, password, name, role } = req.body
+    const result = await AuthService.register(email, password, name, role)
+    res.json({ success: true, data: result })
+  } catch (error: any) {
+    res.status(400).json({ success: false, error: error.message })
+  }
+})
+
+app.get('/api/auth/me', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '')
+    if (!token) {
+      return res.status(401).json({ success: false, error: 'Token não fornecido' })
+    }
+    
+    const user = await AuthService.verifyToken(token)
+    res.json({ success: true, data: user })
+  } catch (error: any) {
+    res.status(401).json({ success: false, error: error.message })
+  }
 })
 
 app.get('/api/menu', async (req, res) => {
@@ -424,11 +490,18 @@ app.get('/api/admin/categories', async (req, res) => {
     
     const categories = await prisma.category.findMany({
       where: { restaurantId: restaurant.id },
-      include: { _count: { select: { menuItems: true } } }
+      include: { 
+        _count: { 
+          select: { 
+            items: true 
+          } 
+        } 
+      }
     })
     
     res.json({ success: true, data: categories })
   } catch (error) {
+    console.error('Categories error:', error)
     res.status(500).json({ success: false, error: 'Failed to fetch categories' })
   }
 })
@@ -464,6 +537,35 @@ app.post('/api/admin/categories', async (req, res) => {
   }
 })
 
+app.delete('/api/admin/categories/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    
+    // Verificar se categoria tem itens
+    const itemCount = await prisma.menuItem.count({
+      where: { categoryId: id }
+    })
+    
+    if (itemCount > 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Não é possível excluir categoria com ${itemCount} item(ns)` 
+      })
+    }
+    
+    await prisma.category.delete({
+      where: { id }
+    })
+    
+    console.log(`🗑️ Categoria removida: ${id}`)
+    
+    res.json({ success: true, message: 'Categoria removida com sucesso' })
+  } catch (error) {
+    console.error('Delete category error:', error)
+    res.status(500).json({ success: false, error: 'Failed to delete category' })
+  }
+})
+
 // Charlie AI Training
 app.get('/api/admin/charlie/training', async (req, res) => {
   try {
@@ -475,28 +577,55 @@ app.get('/api/admin/charlie/training', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Restaurant not found' })
     }
     
-    // Buscar dados de treinamento (simulado)
-    const trainingData = {
-      knowledgeBase: [
-        { id: '1', title: 'Informações do Restaurante', content: 'Muzzajazz é um restaurante de jazz em Pirenópolis, GO. Horário: Ter-Dom 18h-00h. Filosofia: "Aprecie a vida como uma boa música"', type: 'info' },
-        { id: '2', title: 'Cardápio Especialidades', content: 'Pizzas artesanais inspiradas em grandes do jazz: Ella Fitzgerald (mozzarella de búfala), Nina Simone (bacon e gorgonzola)', type: 'menu' },
-        { id: '3', title: 'Atendimento', content: 'Seja sempre caloroso, use referências musicais, sugira harmonizações, pergunte sobre preferências', type: 'behavior' }
-      ],
-      personality: {
-        tone: 'Caloroso e sofisticado',
-        style: 'Sommelier musical',
-        references: 'Jazz, música, harmonização',
-        greeting: '🎷 Olá! Sou o Charlie, seu sommelier musical!'
+    // Buscar conhecimento real do banco
+    const knowledgeBase = await prisma.aIKnowledge.findMany({
+      where: { 
+        restaurantId: restaurant.id,
+        active: true 
       },
+      orderBy: { createdAt: 'desc' }
+    })
+    
+    // Buscar configurações de personalidade
+    const personalityConfig = await prisma.aIConfig.findMany({
+      where: {
+        key: { in: ['personality_tone', 'personality_style', 'personality_greeting'] }
+      }
+    })
+    
+    const personality = {
+      tone: personalityConfig.find(c => c.key === 'personality_tone')?.value || 'Caloroso e sofisticado',
+      style: personalityConfig.find(c => c.key === 'personality_style')?.value || 'Sommelier musical',
+      greeting: personalityConfig.find(c => c.key === 'personality_greeting')?.value || '🎷 Olá! Sou o Charlie, seu sommelier musical!'
+    }
+    
+    // Estatísticas reais
+    const totalInteractions = await prisma.chatInteraction.count({ 
+      where: { restaurantId: restaurant.id } 
+    })
+    
+    const recentInteractions = await prisma.chatInteraction.findMany({
+      where: { 
+        restaurantId: restaurant.id,
+        createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+      }
+    })
+    
+    const trainingData = {
+      knowledgeBase,
+      personality,
       stats: {
-        totalInteractions: await prisma.chatInteraction.count({ where: { restaurantId: restaurant.id } }),
+        totalInteractions,
         avgResponseTime: '1.2s',
-        satisfactionRate: '94%'
+        satisfactionRate: '94%',
+        todayInteractions: recentInteractions.length,
+        knowledgeItems: knowledgeBase.length
       }
     }
     
     res.json({ success: true, data: trainingData })
   } catch (error) {
+    console.error('Training data error:', error)
     res.status(500).json({ success: false, error: 'Failed to fetch training data' })
   }
 })
@@ -505,15 +634,37 @@ app.post('/api/admin/charlie/training', async (req, res) => {
   try {
     const { type, title, content } = req.body
     
-    // Simular salvamento de conhecimento
-    console.log('Novo conhecimento adicionado:', { type, title, content })
+    if (!type || !title || !content) {
+      return res.status(400).json({ success: false, error: 'Campos obrigatórios: type, title, content' })
+    }
+    
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { slug: 'pirenopolis' }
+    })
+    
+    if (!restaurant) {
+      return res.status(404).json({ success: false, error: 'Restaurant not found' })
+    }
+    
+    // Salvar conhecimento real no banco
+    const knowledge = await prisma.aIKnowledge.create({
+      data: {
+        type,
+        title,
+        content,
+        restaurantId: restaurant.id
+      }
+    })
+    
+    console.log(`🤖 Novo conhecimento: ${title} (${type})`)
     
     res.json({ 
       success: true, 
       message: 'Conhecimento adicionado com sucesso!',
-      data: { id: Date.now().toString(), type, title, content }
+      data: knowledge
     })
   } catch (error) {
+    console.error('Add knowledge error:', error)
     res.status(500).json({ success: false, error: 'Failed to add knowledge' })
   }
 })
@@ -522,15 +673,52 @@ app.put('/api/admin/charlie/personality', async (req, res) => {
   try {
     const { tone, style, greeting } = req.body
     
-    // Simular atualização de personalidade
-    console.log('Personalidade atualizada:', { tone, style, greeting })
+    // Salvar configurações reais
+    await Promise.all([
+      prisma.aIConfig.upsert({
+        where: { key: 'personality_tone' },
+        update: { value: tone },
+        create: { key: 'personality_tone', value: tone, description: 'Tom de voz da IA' }
+      }),
+      prisma.aIConfig.upsert({
+        where: { key: 'personality_style' },
+        update: { value: style },
+        create: { key: 'personality_style', value: style, description: 'Estilo da IA' }
+      }),
+      prisma.aIConfig.upsert({
+        where: { key: 'personality_greeting' },
+        update: { value: greeting },
+        create: { key: 'personality_greeting', value: greeting, description: 'Saudação padrão da IA' }
+      })
+    ])
+    
+    console.log('🤖 Personalidade atualizada:', { tone, style, greeting })
     
     res.json({ 
       success: true, 
       message: 'Personalidade da Charlie atualizada!'
     })
   } catch (error) {
+    console.error('Update personality error:', error)
     res.status(500).json({ success: false, error: 'Failed to update personality' })
+  }
+})
+
+// Deletar conhecimento
+app.delete('/api/admin/charlie/training/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    
+    await prisma.aIKnowledge.delete({
+      where: { id }
+    })
+    
+    console.log(`🗑️ Conhecimento removido: ${id}`)
+    
+    res.json({ success: true, message: 'Conhecimento removido!' })
+  } catch (error) {
+    console.error('Delete knowledge error:', error)
+    res.status(500).json({ success: false, error: 'Failed to delete knowledge' })
   }
 })
 
@@ -583,6 +771,36 @@ app.get('/api/admin/orders', async (req, res) => {
   }
 })
 
+// Kitchen endpoint for order status updates
+app.put('/api/orders/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params
+    const { status } = req.body
+    
+    const order = await prisma.order.update({
+      where: { id },
+      data: { status },
+      include: {
+        items: {
+          include: { menuItem: true }
+        }
+      }
+    })
+    
+    // Emitir para múltiplos painéis
+    io.emit('orderStatusUpdate', { orderId: id, status, order })
+    io.emit('adminUpdate', { type: 'order_status_changed', data: { orderId: id, status, order } })
+    io.emit('kitchenUpdate', { type: 'status_changed', data: { orderId: id, status } })
+    
+    console.log(`🍳 Cozinha: Pedido #${id.slice(-4)} -> ${status}`)
+    
+    res.json({ success: true, data: order })
+  } catch (error) {
+    console.error('Kitchen status update error:', error)
+    res.status(500).json({ success: false, error: 'Failed to update order status' })
+  }
+})
+
 app.put('/api/admin/orders/:id/status', async (req, res) => {
   try {
     const { id } = req.params
@@ -603,7 +821,7 @@ app.put('/api/admin/orders/:id/status', async (req, res) => {
     io.emit('adminUpdate', { type: 'order_status_changed', data: { orderId: id, status, order } }) // Para admin
     io.emit('kitchenUpdate', { type: 'status_changed', data: { orderId: id, status } }) // Para cozinha
     
-    console.log(`🔄 Pedido #${id.slice(-4)} atualizado para: ${status}`)
+    console.log(`⚙️ Admin: Pedido #${id.slice(-4)} -> ${status}`)
     
     res.json({ success: true, data: order })
   } catch (error) {
@@ -961,6 +1179,213 @@ app.post('/api/webhooks/asaas', async (req, res) => {
   } catch (error) {
     console.error('Webhook error:', error)
     res.status(500).json({ error: 'Webhook processing failed' })
+  }
+})
+
+// Employee Management
+app.get('/api/admin/employees', async (req, res) => {
+  try {
+    const employees = await prisma.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        active: true,
+        createdAt: true
+      },
+      orderBy: { createdAt: 'desc' }
+    })
+    
+    res.json({ success: true, data: employees })
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to fetch employees' })
+  }
+})
+
+app.put('/api/admin/employees/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    const { active } = req.body
+    
+    await prisma.user.update({
+      where: { id },
+      data: { active }
+    })
+    
+    console.log(`👤 Funcionário ${id.slice(-4)} ${active ? 'ativado' : 'desativado'}`)
+    
+    res.json({ success: true })
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to update employee' })
+  }
+})
+
+// Enhanced Analytics
+app.get('/api/admin/analytics', async (req, res) => {
+  try {
+    const { period = 'today' } = req.query
+    
+    let startDate: Date
+    const now = new Date()
+    
+    switch (period) {
+      case 'week':
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+        break
+      case 'month':
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1)
+        break
+      default: // today
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    }
+    
+    const orders = await prisma.order.findMany({
+      where: { createdAt: { gte: startDate } },
+      include: {
+        items: {
+          include: { menuItem: true }
+        }
+      }
+    })
+    
+    const revenue = orders.reduce((sum, o) => sum + o.total, 0)
+    const avgTicket = orders.length > 0 ? revenue / orders.length : 0
+    
+    // Vendas por hora
+    const hourlyData = Array.from({ length: 24 }, (_, hour) => {
+      const hourOrders = orders.filter(order => 
+        new Date(order.createdAt).getHours() === hour
+      )
+      return {
+        hour: `${hour}:00`,
+        orders: hourOrders.length,
+        revenue: hourOrders.reduce((sum, o) => sum + o.total, 0)
+      }
+    })
+    
+    // Top items
+    const itemMap = new Map()
+    orders.forEach(order => {
+      order.items.forEach(item => {
+        const key = item.menuItem.id
+        if (!itemMap.has(key)) {
+          itemMap.set(key, {
+            name: item.menuItem.name,
+            quantity: 0
+          })
+        }
+        itemMap.get(key).quantity += item.quantity
+      })
+    })
+    
+    const topItems = Array.from(itemMap.values())
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 5)
+    
+    res.json({
+      success: true,
+      data: {
+        orders: orders.length,
+        revenue,
+        avgTicket,
+        hourlyData,
+        topItems
+      }
+    })
+  } catch (error) {
+    console.error('Enhanced analytics error:', error)
+    res.status(500).json({ success: false, error: 'Failed to fetch analytics' })
+  }
+})
+
+// Audit Log Middleware
+const createAuditLog = async (req: any, action: string, resource: string, resourceId?: string, details?: any) => {
+  try {
+    const userEmail = req.user?.email || 'anonymous'
+    const ipAddress = req.ip || req.connection.remoteAddress || 'unknown'
+    const userAgent = req.get('User-Agent') || 'unknown'
+    
+    await prisma.auditLog.create({
+      data: {
+        userEmail,
+        action,
+        resource,
+        resourceId,
+        details: details ? JSON.stringify(details) : null,
+        ipAddress,
+        userAgent,
+        success: true
+      }
+    })
+  } catch (error) {
+    console.error('Erro ao criar log de auditoria:', error)
+  }
+}
+
+// Audit Logs API
+app.get('/api/admin/audit-logs', async (req, res) => {
+  try {
+    const { filter = 'all', limit = 50 } = req.query
+    
+    let whereClause: any = {}
+    
+    if (filter !== 'all') {
+      switch (filter) {
+        case 'login':
+          whereClause.action = { in: ['LOGIN', 'LOGOUT'] }
+          break
+        case 'menu':
+          whereClause.resource = 'MENU_ITEM'
+          break
+        case 'orders':
+          whereClause.resource = 'ORDER'
+          break
+      }
+    }
+    
+    const logs = await prisma.auditLog.findMany({
+      where: whereClause,
+      orderBy: { createdAt: 'desc' },
+      take: parseInt(limit as string)
+    })
+    
+    res.json({ success: true, data: logs })
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to fetch audit logs' })
+  }
+})
+
+// 2FA Verification
+app.post('/api/auth/verify-2fa', async (req, res) => {
+  try {
+    const { email, code } = req.body
+    
+    // Simular verificação 2FA (em produção, usar serviço real)
+    const isValidCode = code === '123456' // Código fixo para demo
+    
+    if (isValidCode) {
+      await createAuditLog(req, 'LOGIN_2FA', 'USER', null, {
+        description: `Verificação 2FA bem-sucedida para ${email}`
+      })
+      
+      res.json({ success: true, message: '2FA verificado com sucesso' })
+    } else {
+      await prisma.auditLog.create({
+        data: {
+          userEmail: email,
+          action: 'LOGIN_2FA_FAILED',
+          resource: 'USER',
+          success: false,
+          ipAddress: req.ip || 'unknown',
+          userAgent: req.get('User-Agent') || 'unknown'
+        }
+      })
+      
+      res.status(401).json({ success: false, error: 'Código 2FA inválido' })
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Erro na verificação 2FA' })
   }
 })
 

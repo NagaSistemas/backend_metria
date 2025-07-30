@@ -33,6 +33,8 @@ model Restaurant {
   payments    Payment[]
   customers   Customer[]
   chatInteractions ChatInteraction[]
+  aiKnowledge AIKnowledge[]
+  auditLogs   AuditLog[]
   
   @@map("restaurants")
 }
@@ -41,6 +43,7 @@ model User {
   id           String      @id @default(cuid())
   email        String      @unique
   name         String
+  password     String?
   role         String      @default("WAITER") // SUPER_ADMIN, OWNER, MANAGER, WAITER, KITCHEN
   restaurantId String?
   restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
@@ -148,4 +151,36 @@ model AIConfig {
   value       String
   description String?
   updatedAt   DateTime @updatedAt
+}
+
+model AIKnowledge {
+  id           String     @id @default(cuid())
+  type         String     // info, menu, behavior
+  title        String
+  content      String
+  active       Boolean    @default(true)
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  
+  @@map("ai_knowledge")
+}
+
+model AuditLog {
+  id           String     @id @default(cuid())
+  userId       String?
+  userEmail    String?
+  action       String     // LOGIN, LOGOUT, CREATE, UPDATE, DELETE
+  resource     String     // USER, ORDER, MENU_ITEM, etc
+  resourceId   String?
+  details      String?    // JSON string with additional details
+  ipAddress    String?
+  userAgent    String?
+  success      Boolean    @default(true)
+  restaurantId String?
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+  
+  @@map("audit_logs")
 }
