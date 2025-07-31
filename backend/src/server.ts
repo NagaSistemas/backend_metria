@@ -17,8 +17,13 @@ const io = new Server(server, {
   }
 })
 
-// CORS simples
-app.use(cors())
+// CORS para produção
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: false
+}))
 app.use(express.json())
 
 // Log requests
