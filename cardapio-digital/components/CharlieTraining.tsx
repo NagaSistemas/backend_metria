@@ -14,7 +14,7 @@ export default function CharlieTraining() {
 
   const loadTrainingData = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/admin/charlie/training')
+      const response = await fetch('https://backendmetria-production.up.railway.app/api/admin/charlie/training')
       const data = await response.json()
       
       if (data.success) {
@@ -34,7 +34,7 @@ export default function CharlieTraining() {
     }
 
     try {
-      const response = await fetch('http://localhost:3001/api/admin/charlie/training', {
+      const response = await fetch('https://backendmetria-production.up.railway.app/api/admin/charlie/training', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newKnowledge)
@@ -56,7 +56,7 @@ export default function CharlieTraining() {
 
   const updatePersonality = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/admin/charlie/personality', {
+      const response = await fetch('https://backendmetria-production.up.railway.app/api/admin/charlie/personality', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(personality)

@@ -12,9 +12,9 @@ export default function ReportsAdvanced() {
     setLoading(true)
     try {
       const [reportRes, analyticsRes, ordersRes] = await Promise.all([
-        fetch('http://localhost:3001/api/admin/reports/data?type=sales'),
-        fetch('http://localhost:3001/api/admin/analytics'),
-        fetch('http://localhost:3001/api/admin/orders')
+        fetch('https://backendmetria-production.up.railway.app/api/admin/reports/data?type=sales'),
+        fetch('https://backendmetria-production.up.railway.app/api/admin/analytics'),
+        fetch('https://backendmetria-production.up.railway.app/api/admin/orders')
       ])
       
       const [reportData, analyticsData, ordersData] = await Promise.all([

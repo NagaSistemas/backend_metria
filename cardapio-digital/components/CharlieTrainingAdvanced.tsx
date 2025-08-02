@@ -27,7 +27,7 @@ export default function CharlieTrainingAdvanced() {
 
   const loadTrainingData = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/admin/charlie/training')
+      const response = await fetch('https://backendmetria-production.up.railway.app/api/admin/charlie/training')
       const data = await response.json()
       if (data.success) {
         setKnowledgeBase(data.data.knowledgeBase || [])
@@ -47,7 +47,7 @@ export default function CharlieTrainingAdvanced() {
     }
 
     try {
-      const response = await fetch('http://localhost:3001/api/admin/charlie/training', {
+      const response = await fetch('https://backendmetria-production.up.railway.app/api/admin/charlie/training', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newKnowledge)
@@ -66,7 +66,7 @@ export default function CharlieTrainingAdvanced() {
 
   const updatePersonality = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/admin/charlie/personality', {
+      const response = await fetch('https://backendmetria-production.up.railway.app/api/admin/charlie/personality', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(personality)
@@ -86,7 +86,7 @@ export default function CharlieTrainingAdvanced() {
 
     setLoading(true)
     try {
-      const response = await fetch('http://localhost:3001/api/ai/chat', {
+      const response = await fetch('https://backendmetria-production.up.railway.app/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

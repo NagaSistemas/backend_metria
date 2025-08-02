@@ -22,7 +22,7 @@ export default function MenuManagement() {
     
     // WebSocket para tempo real
     if (typeof window !== 'undefined') {
-      const socket = require('socket.io-client')('http://localhost:3001')
+      const socket = require('socket.io-client')('https://backendmetria-production.up.railway.app')
       
       // Nova categoria criada
       socket.on('categoryAdded', (newCategory: any) => {
@@ -37,8 +37,8 @@ export default function MenuManagement() {
   const loadData = async () => {
     try {
       const [menuRes, categoriesRes] = await Promise.all([
-        fetch('http://localhost:3001/api/menu'),
-        fetch('http://localhost:3001/api/admin/categories')
+        fetch('https://backendmetria-production.up.railway.app/api/menu'),
+        fetch('https://backendmetria-production.up.railway.app/api/admin/categories')
       ])
 
       const menuData = await menuRes.json()
@@ -55,7 +55,7 @@ export default function MenuManagement() {
     if (!newCategory.trim()) return
 
     try {
-      const response = await fetch('http://localhost:3001/api/admin/categories', {
+      const response = await fetch('https://backendmetria-production.up.railway.app/api/admin/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newCategory })
@@ -81,7 +81,7 @@ export default function MenuManagement() {
 
     setLoading(true)
     try {
-      const response = await fetch('http://localhost:3001/api/admin/menu', {
+      const response = await fetch('https://backendmetria-production.up.railway.app/api/admin/menu', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newItem)
@@ -105,7 +105,7 @@ export default function MenuManagement() {
 
     setLoading(true)
     try {
-      const response = await fetch(`http://localhost:3001/api/admin/menu/${editingItem.id}`, {
+      const response = await fetch(`https://backendmetria-production.up.railway.app/api/admin/menu/${editingItem.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editingItem)
@@ -127,7 +127,7 @@ export default function MenuManagement() {
 
   const toggleItemStatus = async (id: string, active: boolean) => {
     try {
-      const response = await fetch(`http://localhost:3001/api/admin/menu/${id}`, {
+      const response = await fetch(`https://backendmetria-production.up.railway.app/api/admin/menu/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ active: !active })
@@ -147,7 +147,7 @@ export default function MenuManagement() {
     if (!confirm(`Tem certeza que deseja remover "${name}" do repertório?`)) return
 
     try {
-      const response = await fetch(`http://localhost:3001/api/admin/menu/${id}`, {
+      const response = await fetch(`https://backendmetria-production.up.railway.app/api/admin/menu/${id}`, {
         method: 'DELETE'
       })
 

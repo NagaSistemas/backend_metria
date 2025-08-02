@@ -38,7 +38,7 @@ export const requestNotificationPermission = async () => {
       })
       
       // Salvar token no backend
-      await fetch('http://localhost:3001/api/notifications/token', {
+      await fetch('https://backendmetria-production.up.railway.app/api/notifications/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token })
